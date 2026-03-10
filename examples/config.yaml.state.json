@@ -1,0 +1,39 @@
+{
+  "runtimeState": {
+    "text": {
+      "qwen3.5-35b-a3b": {
+        "status": "available",
+        "failureCount": 0,
+        "successCount": 31,
+        "totalRequests": 31,
+        "usedTokens": 633139
+      },
+      "qwen3.5-flash-2026-02-23": {
+        "status": "available",
+        "failureCount": 24,
+        "successCount": 30,
+        "totalRequests": 54,
+        "usedTokens": 642667,
+        "lastFailureTime": 1772454269428
+      }
+    },
+    "voice": {
+      "paraformer-realtime-v2": {
+        "status": "available",
+        "failureCount": 0,
+        "successCount": 0,
+        "totalRequests": 0,
+        "usedTokens": 0
+      }
+    },
+    "image": {
+      "wanx-v1": {
+        "status": "available",
+        "failureCount": 0,
+        "successCount": 0,
+        "totalRequests": 0,
+        "usedTokens": 0
+      }
+    }
+  }
+}

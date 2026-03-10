@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  ai-model-router:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - '8080:8080'
+    environment:
+      - AMR_CONFIG=/app/examples/config.yaml
+    restart: unless-stopped

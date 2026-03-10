@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Model Router</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>AI Model Router</h1>
+    <div class="topbar-actions">
+      <nav>
+        <button data-tab="models" class="active">模型</button>
+        <button data-tab="quick-add">快速添加</button>
+        <button data-tab="stats">统计</button>
+        <button data-tab="settings">网关设置</button>
+      </nav>
+      <button id="manual-refresh-btn">刷新数据</button>
+    </div>
+  </header>
+  <main>
+    <section id="models" class="card"></section>
+    <section id="quick-add" class="card hidden"></section>
+    <section id="stats" class="card hidden"></section>
+    <section id="settings" class="card hidden"></section>
+  </main>
+  <script src="/js/app.js"></script>
+</body>
+</html>
