@@ -23,7 +23,8 @@ export function createChatRouter(ctx: AppContext): Router {
         return
       }
 
-      if (body.stream === true) {
+      const wantsStream = body.stream !== false
+      if (wantsStream) {
         const { modelName, result: upstream } = await ctx.switchStrategy.execute('text', async (modelName) => {
           const adapter = ctx.adapterRegistry.get(modelName)
           return adapter.chatStream(body)
@@ -31,10 +32,15 @@ export function createChatRouter(ctx: AppContext): Router {
         persistLearnedMaxTokensIfNeeded(ctx, 'text', modelName)
         markModelSelected(ctx, 'text', modelName)
         let streamTotalTokens = 0
+        let streamedText = ''
         let completedEventSent = false
         const emitCompleted = (success: boolean, errorMessage?: string) => {
           if (completedEventSent) return
           completedEventSent = true
+          if (success && streamTotalTokens <= 0) {
+            const estimated = estimateTokenUsage(body.messages, streamedText)
+            streamTotalTokens = estimated.total_tokens
+          }
           if (success && streamTotalTokens > 0) {
             ctx.modelPool.addTokenUsage('text', modelName, streamTotalTokens)
             persistQuotaDemotionIfNeeded(ctx, 'text', modelName)
@@ -59,9 +65,16 @@ export function createChatRouter(ctx: AppContext): Router {
         })
 
         try {
-          await pipeUpstreamStream(upstream, res, (totalTokens) => {
-            streamTotalTokens = totalTokens
-          })
+          await pipeUpstreamStream(
+            upstream,
+            res,
+            (totalTokens) => {
+              streamTotalTokens = totalTokens
+            },
+            (deltaText) => {
+              if (deltaText) streamedText += deltaText
+            }
+          )
         } catch (streamError) {
           emitCompleted(false, streamError instanceof Error ? streamError.message : String(streamError))
           throw streamError
@@ -77,7 +90,13 @@ export function createChatRouter(ctx: AppContext): Router {
       markModelSelected(ctx, 'text', modelName)
 
       const sanitized = normalizeChatResponse(result, ctx.config.server.publicModelName || 'custom-model')
-      const tokens = sanitized.usage?.total_tokens ?? 0
+      let tokens = sanitized.usage?.total_tokens ?? 0
+      if (tokens <= 0) {
+        const completionText = collectCompletionText(sanitized)
+        const estimated = estimateTokenUsage(body.messages, completionText)
+        tokens = estimated.total_tokens
+        sanitized.usage = estimated
+      }
       ctx.modelPool.addTokenUsage('text', modelName, tokens)
       persistQuotaDemotionIfNeeded(ctx, 'text', modelName)
       ctx.metrics.update('text', modelName, true, Date.now() - started, tokens)
@@ -138,7 +157,8 @@ function persistLearnedMaxTokensIfNeeded(ctx: AppContext, type: 'text', modelNam
 async function pipeUpstreamStream(
   upstream: globalThis.Response,
   res: Response,
-  onUsage?: (totalTokens: number) => void
+  onUsage?: (totalTokens: number) => void,
+  onDeltaText?: (deltaText: string) => void
 ): Promise<void> {
   const contentType = upstream.headers.get('content-type') || 'text/event-stream; charset=utf-8'
   res.status(upstream.status)
@@ -168,12 +188,21 @@ async function pipeUpstreamStream(
           const data = trimmed.slice(5).trim()
           if (!data || data === '[DONE]') continue
           try {
-            const parsed = JSON.parse(data) as { usage?: { total_tokens?: unknown } }
+            const parsed = JSON.parse(data) as {
+              usage?: { total_tokens?: unknown }
+              choices?: Array<{
+                delta?: { content?: unknown }
+                message?: { content?: unknown }
+              }>
+            }
             const total = Number(parsed.usage?.total_tokens)
             if (Number.isFinite(total) && total > streamedTotalTokens) {
               streamedTotalTokens = Math.floor(total)
               onUsage?.(streamedTotalTokens)
             }
+            const delta = parsed.choices?.[0]?.delta?.content ?? parsed.choices?.[0]?.message?.content
+            const deltaText = normalizeContent(delta)
+            if (deltaText) onDeltaText?.(deltaText)
           } catch {
             // ignore non-JSON data chunks
           }
@@ -301,4 +330,73 @@ function toNonNegativeInt(value: unknown): number {
   const n = Number(value)
   if (!Number.isFinite(n) || n < 0) return 0
   return Math.floor(n)
+}
+
+function collectCompletionText(result: ChatCompletionResponse): string {
+  const choices = Array.isArray(result.choices) ? result.choices : []
+  const parts = choices.map((choice) => {
+    const message = choice.message
+    const content = normalizeContent(message?.content)
+    const toolCalls = isToolCalls(message?.tool_calls) ? JSON.stringify(message?.tool_calls) : ''
+    const functionCall = isFunctionCall(message?.function_call) ? JSON.stringify(message?.function_call) : ''
+    return `${content}${toolCalls}${functionCall}`
+  })
+  return parts.filter(Boolean).join('\n')
+}
+
+function estimateTokenUsage(
+  messages: ChatCompletionRequest['messages'],
+  completionText: string
+): { prompt_tokens: number; completion_tokens: number; total_tokens: number } {
+  const promptTokens = estimatePromptTokens(messages)
+  const completionTokens = estimateTokensFromText(completionText)
+  return {
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: promptTokens + completionTokens
+  }
+}
+
+function estimatePromptTokens(messages: ChatCompletionRequest['messages']): number {
+  if (!Array.isArray(messages)) return 0
+  let total = 0
+  for (const message of messages) {
+    if (!message || typeof message !== 'object') continue
+    const msg = message as Record<string, unknown>
+    const role = typeof msg.role === 'string' ? msg.role : 'user'
+    const content = normalizeContent(msg.content)
+    const toolCalls = isToolCalls(msg.tool_calls) ? JSON.stringify(msg.tool_calls) : ''
+    const functionCall = isFunctionCall(msg.function_call) ? JSON.stringify(msg.function_call) : ''
+    total += estimateTokensFromText(`${role}:${content}${toolCalls}${functionCall}`)
+    total += 2
+  }
+  return total
+}
+
+function estimateTokensFromText(text: string): number {
+  if (!text) return 0
+  let cjk = 0
+  let ascii = 0
+  let other = 0
+  for (const char of text) {
+    if (/\s/.test(char)) continue
+    const code = char.codePointAt(0) ?? 0
+    if (isCjk(code)) {
+      cjk += 1
+    } else if (code <= 0x7f) {
+      ascii += 1
+    } else {
+      other += 1
+    }
+  }
+  return cjk + Math.ceil(ascii / 4) + Math.ceil(other / 2)
+}
+
+function isCjk(code: number): boolean {
+  return (
+    (code >= 0x4e00 && code <= 0x9fff) || // CJK Unified Ideographs
+    (code >= 0x3400 && code <= 0x4dbf) || // CJK Unified Ideographs Extension A
+    (code >= 0x3040 && code <= 0x30ff) || // Hiragana/Katakana
+    (code >= 0xac00 && code <= 0xd7af) // Hangul Syllables
+  )
 }
