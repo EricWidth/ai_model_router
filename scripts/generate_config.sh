@@ -49,17 +49,20 @@ parse_models() {
     | awk 'NF && !seen[$0]++'
 }
 
+has_models_in_file() {
+  local file="$1"
+  parse_models "${file}" | grep -q '.'
+}
+
 emit_models_block() {
   local type="$1"
   local file="$2"
   local include_max_tokens="$3"
   local idx=1
-  local has_any=0
 
   echo "  ${type}:"
   while IFS= read -r model; do
     [[ -z "${model}" ]] && continue
-    has_any=1
     echo "    - name: $(yaml_quote "${model}")"
     echo "      provider: aliyun"
     echo "      apiKey: $(yaml_quote "${ALIYUN_API_KEY}")"
@@ -73,10 +76,6 @@ emit_models_block() {
     fi
     idx=$((idx + 1))
   done < <(parse_models "${file}")
-
-  if [[ "${has_any}" -eq 0 ]]; then
-    echo "    []"
-  fi
 }
 
 require_non_placeholder "ACCESS_API_KEY" "${ACCESS_API_KEY}"
@@ -97,9 +96,24 @@ trap 'rm -f "${TMP_FILE}"' EXIT
   fi
   echo "  publicModelName: $(yaml_quote "${PUBLIC_MODEL_NAME}")"
   echo "models:"
-  emit_models_block "text" "${TEXT_MODELS_FILE}" "yes"
-  emit_models_block "voice" "${VOICE_MODELS_FILE}" "no"
-  emit_models_block "image" "${IMAGE_MODELS_FILE}" "no"
+  if has_models_in_file "${TEXT_MODELS_FILE}"; then
+    emit_models_block "text" "${TEXT_MODELS_FILE}" "yes"
+  else
+    echo "  text: []"
+    echo "[SKIP] text models not configured: ${TEXT_MODELS_FILE}" >&2
+  fi
+  if has_models_in_file "${VOICE_MODELS_FILE}"; then
+    emit_models_block "voice" "${VOICE_MODELS_FILE}" "no"
+  else
+    echo "  voice: []"
+    echo "[SKIP] voice models not configured: ${VOICE_MODELS_FILE}" >&2
+  fi
+  if has_models_in_file "${IMAGE_MODELS_FILE}"; then
+    emit_models_block "image" "${IMAGE_MODELS_FILE}" "no"
+  else
+    echo "  image: []"
+    echo "[SKIP] image models not configured: ${IMAGE_MODELS_FILE}" >&2
+  fi
   echo "switch:"
   echo "  maxRetries: ${MAX_RETRIES}"
   echo "  cooldown: ${COOLDOWN_MS}"
