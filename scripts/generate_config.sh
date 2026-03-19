@@ -64,18 +64,6 @@ has_models_in_file() {
   parse_models "${file}" | grep -q '.'
 }
 
-has_any_text_models() {
-  parse_text_models | grep -q '.'
-}
-
-parse_text_models() {
-  {
-    parse_models "${LLM_MODELS_FILE}"
-    # multimodal models are also routed via text model list in current project schema.
-    parse_models "${MULTIMODAL_MODELS_FILE}"
-  } | awk 'NF && !seen[$0]++'
-}
-
 emit_models_block() {
   local type="$1"
   local file="$2"
@@ -100,25 +88,6 @@ emit_models_block() {
   done < <(parse_models "${file}")
 }
 
-emit_text_models_block() {
-  local idx=1
-
-  echo "  text:"
-  while IFS= read -r model; do
-    [[ -z "${model}" ]] && continue
-    echo "    - name: $(yaml_quote "${model}")"
-    echo "      provider: aliyun"
-    echo "      apiKey: $(yaml_quote "${ALIYUN_API_KEY}")"
-    echo "      baseUrl: $(yaml_quote "${BASE_URL}")"
-    echo "      maxTokens: 8192"
-    echo "      priority: ${idx}"
-    if [[ -n "${QUOTA}" ]]; then
-      echo "      quota: ${QUOTA}"
-    fi
-    idx=$((idx + 1))
-  done < <(parse_text_models)
-}
-
 require_non_placeholder "ACCESS_API_KEY" "${ACCESS_API_KEY}"
 require_non_placeholder "ALIYUN_API_KEY" "${ALIYUN_API_KEY}"
 require_non_placeholder "BASE_URL" "${BASE_URL}"
@@ -137,11 +106,17 @@ trap 'rm -f "${TMP_FILE}"' EXIT
   fi
   echo "  publicModelName: $(yaml_quote "${PUBLIC_MODEL_NAME}")"
   echo "models:"
-  if has_any_text_models; then
-    emit_text_models_block
+  if has_models_in_file "${LLM_MODELS_FILE}"; then
+    emit_models_block "llm" "${LLM_MODELS_FILE}" "yes"
   else
-    echo "  text: []"
-    echo "[SKIP] text models not configured: ${LLM_MODELS_FILE}" >&2
+    echo "  llm: []"
+    echo "[SKIP] llm models not configured: ${LLM_MODELS_FILE}" >&2
+  fi
+  if has_models_in_file "${MULTIMODAL_MODELS_FILE}"; then
+    emit_models_block "multimodal" "${MULTIMODAL_MODELS_FILE}" "yes"
+  else
+    echo "  multimodal: []"
+    echo "[SKIP] multimodal models not configured: ${MULTIMODAL_MODELS_FILE}" >&2
   fi
   if has_models_in_file "${VOICE_MODELS_FILE}"; then
     emit_models_block "voice" "${VOICE_MODELS_FILE}" "no"
@@ -150,13 +125,16 @@ trap 'rm -f "${TMP_FILE}"' EXIT
     echo "[SKIP] voice models not configured: ${VOICE_MODELS_FILE}" >&2
   fi
   if has_models_in_file "${VISUAL_MODELS_FILE}"; then
-    emit_models_block "image" "${VISUAL_MODELS_FILE}" "no"
+    emit_models_block "visual" "${VISUAL_MODELS_FILE}" "no"
   else
-    echo "  image: []"
-    echo "[SKIP] image models not configured: ${VISUAL_MODELS_FILE}" >&2
+    echo "  visual: []"
+    echo "[SKIP] visual models not configured: ${VISUAL_MODELS_FILE}" >&2
   fi
   if has_models_in_file "${VECTOR_MODELS_FILE}"; then
-    echo "[WARN] vector models found in ${VECTOR_MODELS_FILE} but current config schema has no vector type. Ignored." >&2
+    emit_models_block "vector" "${VECTOR_MODELS_FILE}" "no"
+  else
+    echo "  vector: []"
+    echo "[SKIP] vector models not configured: ${VECTOR_MODELS_FILE}" >&2
   fi
   echo "switch:"
   echo "  maxRetries: ${MAX_RETRIES}"
