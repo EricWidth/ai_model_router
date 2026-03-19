@@ -5,7 +5,7 @@ server:
   accessApiKey: <YOUR_ACCESS_API_KEY>
   publicModelName: custom-model
 models:
-  text:
+  llm:
     - name: qwen3.5-35b-a3b
       provider: aliyun
       apiKey: <YOUR_ALIYUN_API_KEY>
@@ -24,18 +24,20 @@ models:
       quota: 800000
       id: 6716ce37-bbb7-4d84-aabc-966912a7ebcd
       selected: false
+  visual:
+    - name: wanx-v1
+      provider: aliyun
+      apiKey: <YOUR_ALIYUN_API_KEY>
+      baseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
+      priority: 1
+  multimodal: []
   voice:
     - name: paraformer-realtime-v2
       provider: aliyun
       apiKey: <YOUR_ALIYUN_API_KEY>
       baseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
       priority: 1
-  image:
-    - name: wanx-v1
-      provider: aliyun
-      apiKey: <YOUR_ALIYUN_API_KEY>
-      baseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
-      priority: 1
+  vector: []
 switch:
   maxRetries: 3
   cooldown: 60000

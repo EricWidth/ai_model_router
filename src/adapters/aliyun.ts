@@ -3,6 +3,8 @@ import {
   AudioSpeechRequest,
   ChatCompletionRequest,
   ChatCompletionResponse,
+  EmbeddingsRequest,
+  EmbeddingsResponse,
   ImageGenerationRequest,
   ImageGenerationResponse,
   ModelType
@@ -24,8 +26,8 @@ export class AliyunAdapter extends BaseAdapter {
 
   getType(): ModelType {
     if (this.name.startsWith('tts-') || this.name.includes('paraformer')) return 'voice'
-    if (this.name.includes('wanx') || this.name.includes('image')) return 'image'
-    return 'text'
+    if (this.name.includes('wanx') || this.name.includes('image')) return 'visual'
+    return 'llm'
   }
 
   async chat(request: ChatCompletionRequest): Promise<ChatCompletionResponse> {
@@ -45,6 +47,14 @@ export class AliyunAdapter extends BaseAdapter {
       body: JSON.stringify({ ...request, model: this.name })
     })
     return Buffer.from(await response.arrayBuffer())
+  }
+
+  async embeddings(request: EmbeddingsRequest): Promise<EmbeddingsResponse> {
+    const response = await this.request('/embeddings', {
+      method: 'POST',
+      body: JSON.stringify({ ...request, model: this.name })
+    })
+    return (await response.json()) as EmbeddingsResponse
   }
 
   async image(request: ImageGenerationRequest): Promise<ImageGenerationResponse> {

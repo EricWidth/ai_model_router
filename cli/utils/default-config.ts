@@ -5,8 +5,20 @@ export const DEFAULT_CONFIG_TEMPLATE = `server:
   accessApiKey: <YOUR_ACCESS_API_KEY>
   publicModelName: custom-model
 models:
-  text:
+  llm:
     - name: gpt-4o-mini
+      provider: openai
+      apiKey: <YOUR_OPENAI_API_KEY>
+      baseUrl: https://api.openai.com/v1
+      priority: 1
+  visual:
+    - name: gpt-image-1
+      provider: openai
+      apiKey: <YOUR_OPENAI_API_KEY>
+      baseUrl: https://api.openai.com/v1
+      priority: 1
+  multimodal:
+    - name: gpt-4o
       provider: openai
       apiKey: <YOUR_OPENAI_API_KEY>
       baseUrl: https://api.openai.com/v1
@@ -17,12 +29,7 @@ models:
       apiKey: <YOUR_OPENAI_API_KEY>
       baseUrl: https://api.openai.com/v1
       priority: 1
-  image:
-    - name: gpt-image-1
-      provider: openai
-      apiKey: <YOUR_OPENAI_API_KEY>
-      baseUrl: https://api.openai.com/v1
-      priority: 1
+  vector: []
 switch:
   maxRetries: 3
   cooldown: 60000

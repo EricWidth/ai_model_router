@@ -1,0 +1,4 @@
+# Vector models. Use comma or newline as separator.
+# Example:
+# text-embedding-v3
+

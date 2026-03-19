@@ -4,6 +4,7 @@ let refreshInFlight = false
 let revealAccessKey = false
 let currentTab = 'models'
 let eventStream = null
+const MODEL_TYPES = ['llm', 'visual', 'multimodal', 'voice', 'vector']
 let gatewayFormDraft = {
   port: '8080',
   host: '0.0.0.0',
@@ -16,7 +17,7 @@ let gatewayFormDraft = {
   healthCheckInterval: '300000'
 }
 let modelFormDraft = {
-  type: 'text',
+  type: 'llm',
   name: '',
   provider: 'aliyun',
   baseUrl: '',
@@ -27,7 +28,7 @@ let modelFormDraft = {
   apiKey: ''
 }
 let quickAddFormDraft = {
-  type: 'text',
+  type: 'llm',
   names: '',
   provider: 'aliyun',
   baseUrl: '',
@@ -99,7 +100,7 @@ function modelCard(type, model, state, activeModelName) {
 function renderModels(payload) {
   latestModelsPayload = payload
   const root = document.getElementById('models')
-  const sections = ['text', 'voice', 'image']
+  const sections = MODEL_TYPES
 
   const sectionHtml = sections
     .map((type) => {
@@ -116,9 +117,11 @@ function renderModels(payload) {
     <p id="models-error" class="error-banner hidden"></p>
     <form id="add-model-form" class="form-grid">
       <select name="type" required>
-        <option value="text" ${modelFormDraft.type === 'text' ? 'selected' : ''}>text</option>
+        <option value="llm" ${modelFormDraft.type === 'llm' ? 'selected' : ''}>llm</option>
+        <option value="visual" ${modelFormDraft.type === 'visual' ? 'selected' : ''}>visual</option>
+        <option value="multimodal" ${modelFormDraft.type === 'multimodal' ? 'selected' : ''}>multimodal</option>
         <option value="voice" ${modelFormDraft.type === 'voice' ? 'selected' : ''}>voice</option>
-        <option value="image" ${modelFormDraft.type === 'image' ? 'selected' : ''}>image</option>
+        <option value="vector" ${modelFormDraft.type === 'vector' ? 'selected' : ''}>vector</option>
       </select>
       <input name="name" placeholder="model name" value="${escapeHtml(modelFormDraft.name)}" required />
       <select name="provider" id="provider-select" required>
@@ -237,9 +240,11 @@ function renderQuickAdd() {
     <p id="quick-add-error" class="error-banner hidden"></p>
     <form id="quick-add-form" class="form-grid">
       <select name="type" required>
-        <option value="text" ${quickAddFormDraft.type === 'text' ? 'selected' : ''}>text</option>
+        <option value="llm" ${quickAddFormDraft.type === 'llm' ? 'selected' : ''}>llm</option>
+        <option value="visual" ${quickAddFormDraft.type === 'visual' ? 'selected' : ''}>visual</option>
+        <option value="multimodal" ${quickAddFormDraft.type === 'multimodal' ? 'selected' : ''}>multimodal</option>
         <option value="voice" ${quickAddFormDraft.type === 'voice' ? 'selected' : ''}>voice</option>
-        <option value="image" ${quickAddFormDraft.type === 'image' ? 'selected' : ''}>image</option>
+        <option value="vector" ${quickAddFormDraft.type === 'vector' ? 'selected' : ''}>vector</option>
       </select>
       <textarea name="names" placeholder="model-A&#10;model-B&#10;model-C" required>${escapeHtml(quickAddFormDraft.names)}</textarea>
       <select name="provider" id="quick-provider-select" required>
@@ -315,7 +320,7 @@ function bindAddModelForm() {
       })
       form.reset()
       modelFormDraft = {
-        type: 'text',
+        type: 'llm',
         name: '',
         provider: 'aliyun',
         baseUrl: '',
@@ -439,7 +444,7 @@ function bindModelActions() {
 
 function findModelByName(name) {
   if (!latestModelsPayload?.models) return null
-  for (const type of ['text', 'voice', 'image']) {
+  for (const type of MODEL_TYPES) {
     const models = latestModelsPayload.models[type] || []
     const found = models.find((model) => model.name === name)
     if (found) return found
@@ -608,7 +613,7 @@ function bindQuickAddForm() {
         showQuickAddMessage(`新增成功：${result.createdCount} 个模型`, true)
       }
       quickAddFormDraft = {
-        type: String(fd.get('type') || 'text'),
+        type: String(fd.get('type') || 'llm'),
         names: '',
         provider: String(fd.get('provider') || 'aliyun'),
         baseUrl: String(fd.get('baseUrl') || ''),
@@ -673,7 +678,7 @@ setupRealtimeRefresh()
 function syncDraftFromForm(form) {
   const fd = new FormData(form)
   modelFormDraft = {
-    type: String(fd.get('type') || 'text'),
+    type: String(fd.get('type') || 'llm'),
     name: String(fd.get('name') || ''),
     provider: String(fd.get('provider') || 'aliyun'),
     baseUrl: String(fd.get('baseUrl') || ''),
@@ -703,7 +708,7 @@ function syncGatewayDraft(form) {
 function syncQuickAddDraft(form) {
   const fd = new FormData(form)
   quickAddFormDraft = {
-    type: String(fd.get('type') || 'text'),
+    type: String(fd.get('type') || 'llm'),
     names: String(fd.get('names') || ''),
     provider: String(fd.get('provider') || 'aliyun'),
     baseUrl: String(fd.get('baseUrl') || ''),

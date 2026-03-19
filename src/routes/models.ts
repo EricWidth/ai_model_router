@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { AppContext } from './context'
 import { sendOpenAIError } from '../middlewares/error'
+import { MODEL_TYPES } from '../types'
 
 interface OpenAIModelItem {
   id: string
@@ -64,7 +65,7 @@ function listOpenAIModels(ctx: AppContext, created: number): OpenAIModelItem[] {
     items.push(toModel(publicModel, created))
   }
 
-  for (const type of ['text', 'voice', 'image'] as const) {
+  for (const type of MODEL_TYPES) {
     for (const model of ctx.config.models[type]) {
       if (model.enabled === false) continue
       if (names.has(model.name)) continue

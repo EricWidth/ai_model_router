@@ -16,20 +16,20 @@ export function createImageRouter(ctx: AppContext): Router {
         return
       }
 
-      const { modelName, result } = await ctx.switchStrategy.execute('image', async (modelName) => {
+      const { modelName, result } = await ctx.switchStrategy.execute('visual', async (modelName) => {
         const adapter = ctx.adapterRegistry.get(modelName)
         return adapter.image(body)
       })
-      markModelSelected(ctx, 'image', modelName)
+      markModelSelected(ctx, 'visual', modelName)
 
-      ctx.metrics.update('image', modelName, true, Date.now() - started, 0)
-      ctx.runtimeEvents.emit('request.completed', { route: 'image', modelType: 'image', modelName, success: true })
+      ctx.metrics.update('visual', modelName, true, Date.now() - started, 0)
+      ctx.runtimeEvents.emit('request.completed', { route: 'image', modelType: 'visual', modelName, success: true })
       res.json(result)
     } catch (error) {
-      ctx.metrics.update('image', 'unknown', false, Date.now() - started, 0)
+      ctx.metrics.update('visual', 'unknown', false, Date.now() - started, 0)
       ctx.runtimeEvents.emit('request.completed', {
         route: 'image',
-        modelType: 'image',
+        modelType: 'visual',
         modelName: 'unknown',
         success: false,
         error: error instanceof Error ? error.message : String(error)

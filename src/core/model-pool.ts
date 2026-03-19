@@ -1,4 +1,4 @@
-import { ModelConfig, ModelType, SwitchConfig } from '../types'
+import { ModelConfig, ModelType, MODEL_TYPES, SwitchConfig } from '../types'
 
 export interface ModelState {
   name: string
@@ -14,11 +14,7 @@ export interface ModelState {
   cooldownUntil?: number
 }
 
-export interface TokenUsageSnapshot {
-  text: Record<string, number>
-  voice: Record<string, number>
-  image: Record<string, number>
-}
+export type TokenUsageSnapshot = Record<ModelType, Record<string, number>>
 
 export interface PersistedModelRuntimeState {
   status: ModelState['status']
@@ -30,11 +26,7 @@ export interface PersistedModelRuntimeState {
   cooldownUntil?: number
 }
 
-export interface RuntimeStateSnapshot {
-  text: Record<string, PersistedModelRuntimeState>
-  voice: Record<string, PersistedModelRuntimeState>
-  image: Record<string, PersistedModelRuntimeState>
-}
+export type RuntimeStateSnapshot = Record<ModelType, Record<string, PersistedModelRuntimeState>>
 
 export class ModelPool {
   private readonly pools = new Map<ModelType, Map<string, ModelState>>()
@@ -46,7 +38,7 @@ export class ModelPool {
 
   reload(models: Record<ModelType, ModelConfig[]>): void {
     const previous = new Map<ModelType, Map<string, ModelState>>()
-    for (const type of ['text', 'voice', 'image'] as ModelType[]) {
+    for (const type of MODEL_TYPES) {
       const oldPool = this.pools.get(type)
       if (oldPool) {
         previous.set(type, new Map(oldPool))
@@ -54,7 +46,7 @@ export class ModelPool {
     }
 
     this.pools.clear()
-    ;(['text', 'voice', 'image'] as ModelType[]).forEach((type) => {
+    MODEL_TYPES.forEach((type) => {
       const map = new Map<string, ModelState>()
       const prevPool = previous.get(type)
       for (const model of models[type]) {
@@ -173,31 +165,22 @@ export class ModelPool {
   }
 
   listStates(): Record<ModelType, ModelState[]> {
-    return {
-      text: Array.from(this.pools.get('text')?.values() ?? []),
-      voice: Array.from(this.pools.get('voice')?.values() ?? []),
-      image: Array.from(this.pools.get('image')?.values() ?? [])
-    }
+    return Object.fromEntries(MODEL_TYPES.map((type) => [type, Array.from(this.pools.get(type)?.values() ?? [])])) as Record<
+      ModelType,
+      ModelState[]
+    >
   }
 
   getTokenUsageSnapshot(): TokenUsageSnapshot {
-    return {
-      text: toUsageMap(this.pools.get('text')),
-      voice: toUsageMap(this.pools.get('voice')),
-      image: toUsageMap(this.pools.get('image'))
-    }
+    return Object.fromEntries(MODEL_TYPES.map((type) => [type, toUsageMap(this.pools.get(type))])) as TokenUsageSnapshot
   }
 
   getRuntimeStateSnapshot(): RuntimeStateSnapshot {
-    return {
-      text: toRuntimeMap(this.pools.get('text')),
-      voice: toRuntimeMap(this.pools.get('voice')),
-      image: toRuntimeMap(this.pools.get('image'))
-    }
+    return Object.fromEntries(MODEL_TYPES.map((type) => [type, toRuntimeMap(this.pools.get(type))])) as RuntimeStateSnapshot
   }
 
   applyTokenUsageSnapshot(snapshot: Partial<TokenUsageSnapshot>): void {
-    for (const type of ['text', 'voice', 'image'] as ModelType[]) {
+    for (const type of MODEL_TYPES) {
       const usage = snapshot[type]
       if (!usage) continue
       const pool = this.pools.get(type)
@@ -215,7 +198,7 @@ export class ModelPool {
   }
 
   applyRuntimeStateSnapshot(snapshot: Partial<RuntimeStateSnapshot>): void {
-    for (const type of ['text', 'voice', 'image'] as ModelType[]) {
+    for (const type of MODEL_TYPES) {
       const runtimeMap = snapshot[type]
       if (!runtimeMap) continue
       const pool = this.pools.get(type)

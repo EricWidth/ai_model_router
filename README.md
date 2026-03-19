@@ -59,6 +59,8 @@ AMR_CONFIG=examples/config.yaml npm start
 - `GET /v1/models`
 - `GET /v1/models/:id`
 - `POST /v1/chat/completions`
+- `POST /v1/multimodal/completions`
+- `POST /v1/embeddings`
 - `POST /v1/audio/speech`
 - `POST /v1/images/generations`
 - `GET /_internal/models`

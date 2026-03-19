@@ -1,4 +1,4 @@
-import { AppConfig, ModelType } from '../types'
+import { AppConfig, ModelType, MODEL_TYPES } from '../types'
 import { ModelPool } from './model-pool'
 
 export function isQuotaExhausted(modelPool: ModelPool, type: ModelType, modelName: string): boolean {
@@ -35,7 +35,7 @@ export function demoteAllQuotaExhaustedModels(config: AppConfig, modelPool: Mode
   let changed = false
   const states = modelPool.listStates()
 
-  for (const type of ['text', 'voice', 'image'] as ModelType[]) {
+  for (const type of MODEL_TYPES) {
     for (const state of states[type]) {
       if (state.status !== 'quota_exhausted') continue
       if (demoteModelToLowestPriority(config, type, state.name)) {

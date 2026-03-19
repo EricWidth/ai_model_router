@@ -3,7 +3,7 @@ import { pipeline } from 'node:stream/promises'
 import { Transform } from 'node:stream'
 import { Response, Router } from 'express'
 import { randomUUID } from 'node:crypto'
-import { ChatCompletionRequest, ChatCompletionResponse } from '../types'
+import { ChatCompletionRequest, ChatCompletionResponse, ModelType } from '../types'
 import { AppContext } from './context'
 import { sendOpenAIError } from '../middlewares/error'
 import { isQuotaExhausted, demoteModelToLowestPriority } from '../core/quota-policy'
@@ -12,6 +12,14 @@ import { logger } from '../utils/logger'
 import { markModelSelected } from './model-selection'
 
 export function createChatRouter(ctx: AppContext): Router {
+  return createTypedChatRouter(ctx, 'llm', 'chat')
+}
+
+export function createMultimodalRouter(ctx: AppContext): Router {
+  return createTypedChatRouter(ctx, 'multimodal', 'multimodal')
+}
+
+function createTypedChatRouter(ctx: AppContext, modelType: 'llm' | 'multimodal', route: string): Router {
   const router = Router()
 
   router.post('/completions', async (req, res, next) => {
@@ -25,12 +33,12 @@ export function createChatRouter(ctx: AppContext): Router {
 
       const wantsStream = body.stream !== false
       if (wantsStream) {
-        const { modelName, result: upstream } = await ctx.switchStrategy.execute('text', async (modelName) => {
+        const { modelName, result: upstream } = await ctx.switchStrategy.execute(modelType, async (modelName) => {
           const adapter = ctx.adapterRegistry.get(modelName)
           return adapter.chatStream(body)
         })
-        persistLearnedMaxTokensIfNeeded(ctx, 'text', modelName)
-        markModelSelected(ctx, 'text', modelName)
+        persistLearnedMaxTokensIfNeeded(ctx, modelType, modelName)
+        markModelSelected(ctx, modelType, modelName)
         let streamTotalTokens = 0
         let streamedText = ''
         let completedEventSent = false
@@ -42,13 +50,13 @@ export function createChatRouter(ctx: AppContext): Router {
             streamTotalTokens = estimated.total_tokens
           }
           if (success && streamTotalTokens > 0) {
-            ctx.modelPool.addTokenUsage('text', modelName, streamTotalTokens)
-            persistQuotaDemotionIfNeeded(ctx, 'text', modelName)
+            ctx.modelPool.addTokenUsage(modelType, modelName, streamTotalTokens)
+            persistQuotaDemotionIfNeeded(ctx, modelType, modelName)
           }
-          ctx.metrics.update('text', modelName, success, Date.now() - started, streamTotalTokens)
+          ctx.metrics.update(modelType, modelName, success, Date.now() - started, streamTotalTokens)
           ctx.runtimeEvents.emit('request.completed', {
-            route: 'chat',
-            modelType: 'text',
+            route,
+            modelType,
             modelName,
             success,
             stream: true,
@@ -82,12 +90,12 @@ export function createChatRouter(ctx: AppContext): Router {
         return
       }
 
-      const { modelName, result } = await ctx.switchStrategy.execute('text', async (modelName) => {
+      const { modelName, result } = await ctx.switchStrategy.execute(modelType, async (modelName) => {
         const adapter = ctx.adapterRegistry.get(modelName)
         return adapter.chat(body)
       })
-      persistLearnedMaxTokensIfNeeded(ctx, 'text', modelName)
-      markModelSelected(ctx, 'text', modelName)
+      persistLearnedMaxTokensIfNeeded(ctx, modelType, modelName)
+      markModelSelected(ctx, modelType, modelName)
 
       const sanitized = normalizeChatResponse(result, ctx.config.server.publicModelName || 'custom-model')
       let tokens = sanitized.usage?.total_tokens ?? 0
@@ -97,17 +105,17 @@ export function createChatRouter(ctx: AppContext): Router {
         tokens = estimated.total_tokens
         sanitized.usage = estimated
       }
-      ctx.modelPool.addTokenUsage('text', modelName, tokens)
-      persistQuotaDemotionIfNeeded(ctx, 'text', modelName)
-      ctx.metrics.update('text', modelName, true, Date.now() - started, tokens)
-      ctx.runtimeEvents.emit('request.completed', { route: 'chat', modelType: 'text', modelName, success: true, stream: false })
+      ctx.modelPool.addTokenUsage(modelType, modelName, tokens)
+      persistQuotaDemotionIfNeeded(ctx, modelType, modelName)
+      ctx.metrics.update(modelType, modelName, true, Date.now() - started, tokens)
+      ctx.runtimeEvents.emit('request.completed', { route, modelType, modelName, success: true, stream: false })
       res.json(sanitized)
     } catch (error) {
       if (body.stream !== true) {
-        ctx.metrics.update('text', 'unknown', false, Date.now() - started, 0)
+        ctx.metrics.update(modelType, 'unknown', false, Date.now() - started, 0)
         ctx.runtimeEvents.emit('request.completed', {
-          route: 'chat',
-          modelType: 'text',
+          route,
+          modelType,
           modelName: 'unknown',
           success: false,
           stream: false,
@@ -121,7 +129,7 @@ export function createChatRouter(ctx: AppContext): Router {
   return router
 }
 
-function persistQuotaDemotionIfNeeded(ctx: AppContext, type: 'text', modelName: string): void {
+function persistQuotaDemotionIfNeeded(ctx: AppContext, type: ModelType, modelName: string): void {
   if (!isQuotaExhausted(ctx.modelPool, type, modelName)) return
   const changed = demoteModelToLowestPriority(ctx.config, type, modelName)
   if (!changed) return
@@ -132,7 +140,7 @@ function persistQuotaDemotionIfNeeded(ctx: AppContext, type: 'text', modelName: 
   })
 }
 
-function persistLearnedMaxTokensIfNeeded(ctx: AppContext, type: 'text', modelName: string): void {
+function persistLearnedMaxTokensIfNeeded(ctx: AppContext, type: 'llm' | 'multimodal', modelName: string): void {
   const adapter = ctx.adapterRegistry.get(modelName) as { consumeLearnedMaxTokens?: () => number | undefined }
   if (typeof adapter.consumeLearnedMaxTokens !== 'function') return
 

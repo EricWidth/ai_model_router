@@ -1,6 +1,6 @@
 import { AdapterFactory } from '../adapters/factory'
 import { ModelAdapter } from '../adapters/base'
-import { AppConfig, ModelConfig, ModelType } from '../types'
+import { AppConfig, ModelConfig, ModelType, MODEL_TYPES } from '../types'
 
 export class AdapterRegistry {
   private readonly adapters = new Map<string, ModelAdapter>()
@@ -26,7 +26,7 @@ export class AdapterRegistry {
     this.adapters.clear()
     this.modelsByType.clear()
 
-    ;(['text', 'voice', 'image'] as ModelType[]).forEach((type) => {
+    MODEL_TYPES.forEach((type) => {
       this.modelsByType.set(type, new Set<string>())
       for (const model of config.models[type]) {
         this.upsert(type, model)

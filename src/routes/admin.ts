@@ -1,11 +1,9 @@
 import { Router } from 'express'
 import { randomUUID } from 'node:crypto'
-import { ModelConfig, ModelType, SwitchConfig } from '../types'
+import { ModelConfig, ModelType, MODEL_TYPES, SwitchConfig } from '../types'
 import { AppContext } from './context'
 import { saveConfigToFile } from '../config/storage'
 import { sendOpenAIError } from '../middlewares/error'
-
-const MODEL_TYPES: ModelType[] = ['text', 'voice', 'image']
 
 export function createAdminRouter(ctx: AppContext): Router {
   const router = Router()

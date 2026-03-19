@@ -1,4 +1,5 @@
-export type ModelType = 'text' | 'voice' | 'image'
+export type ModelType = 'llm' | 'visual' | 'multimodal' | 'voice' | 'vector'
+export const MODEL_TYPES: ModelType[] = ['llm', 'visual', 'multimodal', 'voice', 'vector']
 
 export interface ModelConfig {
   id?: string
@@ -110,4 +111,26 @@ export interface ImageGenerationResponse {
     b64_json?: string
     revised_prompt?: string
   }>
+}
+
+export interface EmbeddingsRequest {
+  model?: string
+  input: string | string[] | Array<number> | Array<Array<number>>
+  encoding_format?: 'float' | 'base64'
+  dimensions?: number
+  user?: string
+}
+
+export interface EmbeddingsResponse {
+  object: 'list'
+  data: Array<{
+    object: 'embedding'
+    embedding: number[] | string
+    index: number
+  }>
+  model: string
+  usage?: {
+    prompt_tokens: number
+    total_tokens: number
+  }
 }

@@ -17,11 +17,13 @@ export const configSchema = {
     },
     models: {
       type: 'object',
-      required: ['text', 'voice', 'image'],
+      required: ['llm', 'visual', 'multimodal', 'voice', 'vector'],
       properties: {
-        text: { type: 'array', items: { $ref: '#/definitions/model' } },
+        llm: { type: 'array', items: { $ref: '#/definitions/model' } },
+        visual: { type: 'array', items: { $ref: '#/definitions/model' } },
+        multimodal: { type: 'array', items: { $ref: '#/definitions/model' } },
         voice: { type: 'array', items: { $ref: '#/definitions/model' } },
-        image: { type: 'array', items: { $ref: '#/definitions/model' } }
+        vector: { type: 'array', items: { $ref: '#/definitions/model' } }
       },
       additionalProperties: false
     },

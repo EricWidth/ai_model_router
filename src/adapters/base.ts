@@ -2,6 +2,8 @@ import {
   AudioSpeechRequest,
   ChatCompletionRequest,
   ChatCompletionResponse,
+  EmbeddingsRequest,
+  EmbeddingsResponse,
   ImageGenerationRequest,
   ImageGenerationResponse,
   ModelType
@@ -12,6 +14,7 @@ export interface ModelAdapter {
   readonly provider: string
   chat(request: ChatCompletionRequest): Promise<ChatCompletionResponse>
   chatStream(request: ChatCompletionRequest): Promise<Response>
+  embeddings(request: EmbeddingsRequest): Promise<EmbeddingsResponse>
   speech(request: AudioSpeechRequest): Promise<Buffer>
   image(request: ImageGenerationRequest): Promise<ImageGenerationResponse>
   consumeLearnedMaxTokens?(): number | undefined
@@ -31,6 +34,7 @@ export abstract class BaseAdapter implements ModelAdapter {
 
   abstract chat(request: ChatCompletionRequest): Promise<ChatCompletionResponse>
   abstract chatStream(request: ChatCompletionRequest): Promise<Response>
+  abstract embeddings(request: EmbeddingsRequest): Promise<EmbeddingsResponse>
   abstract speech(request: AudioSpeechRequest): Promise<Buffer>
   abstract image(request: ImageGenerationRequest): Promise<ImageGenerationResponse>
   abstract getType(): ModelType

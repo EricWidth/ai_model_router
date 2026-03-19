@@ -1,5 +1,0 @@
-# Text models. Use comma or newline as separator.
-# Example:
-# qwen-max,qwen-plus
-# qwen-turbo
-

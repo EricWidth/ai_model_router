@@ -3,6 +3,8 @@ import {
   AudioSpeechRequest,
   ChatCompletionRequest,
   ChatCompletionResponse,
+  EmbeddingsRequest,
+  EmbeddingsResponse,
   ImageGenerationRequest,
   ImageGenerationResponse,
   ModelType
@@ -11,8 +13,8 @@ import {
 export class OpenAIAdapter extends BaseAdapter {
   getType(): ModelType {
     if (this.name.startsWith('tts-')) return 'voice'
-    if (this.name.startsWith('dall-e') || this.name.startsWith('gpt-image')) return 'image'
-    return 'text'
+    if (this.name.startsWith('dall-e') || this.name.startsWith('gpt-image')) return 'visual'
+    return 'llm'
   }
 
   async chat(request: ChatCompletionRequest): Promise<ChatCompletionResponse> {
@@ -36,6 +38,14 @@ export class OpenAIAdapter extends BaseAdapter {
       body: JSON.stringify({ ...request, model: this.name })
     })
     return Buffer.from(await response.arrayBuffer())
+  }
+
+  async embeddings(request: EmbeddingsRequest): Promise<EmbeddingsResponse> {
+    const response = await this.request('/embeddings', {
+      method: 'POST',
+      body: JSON.stringify({ ...request, model: this.name })
+    })
+    return (await response.json()) as EmbeddingsResponse
   }
 
   async image(request: ImageGenerationRequest): Promise<ImageGenerationResponse> {

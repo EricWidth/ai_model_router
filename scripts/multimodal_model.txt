@@ -1,0 +1,4 @@
+# Multimodal models. Use comma or newline as separator.
+# Example:
+# qwen-vl-max
+
