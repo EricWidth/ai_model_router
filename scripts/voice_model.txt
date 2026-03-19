@@ -1,0 +1,4 @@
+# Voice models. Use comma or newline as separator.
+# Example:
+# paraformer-realtime-v2
+
