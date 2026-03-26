@@ -19,6 +19,7 @@ import { logger } from './utils/logger'
 import { saveConfigToFile } from './config/storage'
 import { MODEL_TYPES } from './types'
 import { GENERATED_IMAGES_ROUTE, resolveGeneratedImagesDir } from './routes/image-normalizer'
+import { ModelAdapter } from './adapters/base'
 
 export async function startServer(): Promise<void> {
   const configPath = process.env.AMR_CONFIG ?? path.resolve(process.cwd(), 'examples/config.yaml')
@@ -123,7 +124,8 @@ async function runHealthCheckTick(adapterRegistry: AdapterRegistry, modelPool: M
       if (!shouldProbeState(type, state.status)) continue
       try {
         const adapter = adapterRegistry.get(state.name)
-        await adapter.healthCheck()
+        const healthy = await probeModelHealth(type, state.cooldownUntil, adapter)
+        if (!healthy) continue
         modelPool.markHealthy(type, state.name)
       } catch (error) {
         logger.debug(
@@ -139,7 +141,30 @@ export function shouldProbeState(
   status: 'available' | 'cooling' | 'unavailable' | 'quota_exhausted'
 ): boolean {
   if (status !== 'cooling' && status !== 'unavailable') return false
-  return type === 'llm' || type === 'multimodal'
+  return (
+    type === 'llm' || type === 'multimodal' || type === 'vector' || type === 'voice' || type === 'visual'
+  )
+}
+
+async function probeModelHealth(
+  type: (typeof MODEL_TYPES)[number],
+  cooldownUntil: number | undefined,
+  adapter: ModelAdapter
+): Promise<boolean> {
+  if (type === 'llm' || type === 'multimodal') {
+    await adapter.healthCheck()
+    return true
+  }
+
+  if (type === 'vector') {
+    await adapter.embeddings({ input: 'healthcheck' })
+    return true
+  }
+
+  // For media generation models, avoid active probing that creates side effects/cost.
+  // Recover them automatically once cooldown has elapsed; real traffic will verify availability.
+  if (!cooldownUntil) return true
+  return Date.now() >= cooldownUntil
 }
 
 function resolveWebRoot(): string {
