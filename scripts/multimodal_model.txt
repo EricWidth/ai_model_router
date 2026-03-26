@@ -1,4 +1,17 @@
 # Multimodal models. Use comma or newline as separator.
 # Example:
 # qwen-vl-max
-
+qwen3-omni-flash-realtime-2025-09-15
+qwen3-omni-flash-realtime
+qwen-omni-turbo-realtime-2025-05-08
+qwen-omni-turbo-realtime-latest
+qwen3-omni-flash
+qwen3-omni-flash-2025-12-01
+qwen-omni-turbo-realtime
+qwen-omni-turbo-latest
+qwen-omni-turbo
+qwen2.5-omni-7b
+qwen-omni-turbo-2025-03-26
+qwen3-omni-flash-realtime-2025-12-01
+qwen-omni-turbo-2025-01-19
+qwen3-omni-flash-2025-09-15

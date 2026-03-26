@@ -1,4 +1,19 @@
 # Vector models. Use comma or newline as separator.
 # Example:
 # text-embedding-v3
-
+gte-rerank-v2
+tongyi-embedding-vision-plus-2026-03-06
+tongyi-embedding-vision-flash-2026-03-06
+qwen3-vl-rerank
+tongyi-embedding-vision-flash
+qwen3-vl-embedding
+multimodal-embedding-v1
+qwen3-rerank
+text-embedding-v1
+text-embedding-v3
+tongyi-embedding-vision-plus
+text-embedding-v2
+text-embedding-v4
+qwen2.5-vl-embedding
+text-embedding-async-v1
+text-embedding-async-v2
