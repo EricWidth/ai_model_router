@@ -11,8 +11,7 @@ test('AliyunAdapter applies default max_tokens for llm chat payload', () => {
     false
   )
 
-  assert.equal(typeof payload.max_tokens, 'number')
-  assert.ok(payload.max_tokens > 0)
+  assert.equal(payload.max_tokens, 4096)
 })
 
 test('AliyunAdapter does not apply default max_tokens for visual models', () => {

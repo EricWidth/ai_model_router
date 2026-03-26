@@ -67,7 +67,7 @@ has_models_in_file() {
 emit_models_block() {
   local type="$1"
   local file="$2"
-  local include_max_tokens="$3"
+  local include_quota="${3:-no}"
   local idx=1
 
   echo "  ${type}:"
@@ -77,11 +77,8 @@ emit_models_block() {
     echo "      provider: aliyun"
     echo "      apiKey: $(yaml_quote "${ALIYUN_API_KEY}")"
     echo "      baseUrl: $(yaml_quote "${BASE_URL}")"
-    if [[ "${include_max_tokens}" == "yes" ]]; then
-      echo "      maxTokens: 8192"
-    fi
     echo "      priority: ${idx}"
-    if [[ -n "${QUOTA}" ]]; then
+    if [[ "${include_quota}" == "yes" && -n "${QUOTA}" ]]; then
       echo "      quota: ${QUOTA}"
     fi
     idx=$((idx + 1))
