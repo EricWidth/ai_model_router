@@ -114,11 +114,15 @@ export class AliyunAdapter extends BaseAdapter {
   }
 
   private normalizeMaxTokens(payload: Record<string, unknown>): void {
-    const providerLimit = AliyunAdapter.PROVIDER_MAX_TOKENS
+    const defaultLimitEnabled = this.shouldApplyDefaultTokenLimit()
+    const providerLimit = defaultLimitEnabled ? AliyunAdapter.PROVIDER_MAX_TOKENS : Number.POSITIVE_INFINITY
     const modelLimit = this.getModelMaxTokens()
     const configuredLimit = Math.min(providerLimit, modelLimit)
     const hasRequestValue = Object.prototype.hasOwnProperty.call(payload, 'max_tokens')
-    const adaptiveLimit = this.shouldUseAdaptiveMaxTokens() ? this.getAdaptiveMaxTokens() : Number.POSITIVE_INFINITY
+    const adaptiveLimit =
+      this.shouldUseAdaptiveMaxTokens() && defaultLimitEnabled
+        ? this.getAdaptiveMaxTokens()
+        : Number.POSITIVE_INFINITY
     const effectiveLimit = Math.min(configuredLimit, adaptiveLimit)
 
     if (!hasRequestValue) {
@@ -157,6 +161,11 @@ export class AliyunAdapter extends BaseAdapter {
 
   private shouldUseAdaptiveMaxTokens(): boolean {
     return !Number.isFinite(this.maxTokens) || (this.maxTokens as number) < 1
+  }
+
+  private shouldApplyDefaultTokenLimit(): boolean {
+    const type = this.getType()
+    return type === 'llm' || type === 'multimodal'
   }
 
   private getAdaptiveMaxTokens(): number {
