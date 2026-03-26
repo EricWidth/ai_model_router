@@ -24,6 +24,7 @@ export interface ServerConfig {
   adminApiKey?: string
   accessApiKey?: string
   publicModelName?: string
+  publicBaseUrl?: string
 }
 
 export interface SwitchConfig {

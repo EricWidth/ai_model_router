@@ -13,9 +13,12 @@ import { SwitchStrategy } from './core/switch-strategy'
 import { demoteAllQuotaExhaustedModels } from './core/quota-policy'
 import { requestLogger } from './middlewares/logger'
 import { errorHandler } from './middlewares/error'
+import { generatedImageAuth } from './middlewares/generated-image-auth'
 import { registerRoutes } from './routes'
 import { logger } from './utils/logger'
 import { saveConfigToFile } from './config/storage'
+import { MODEL_TYPES } from './types'
+import { GENERATED_IMAGES_ROUTE, resolveGeneratedImagesDir } from './routes/image-normalizer'
 
 export async function startServer(): Promise<void> {
   const configPath = process.env.AMR_CONFIG ?? path.resolve(process.cwd(), 'examples/config.yaml')
@@ -44,6 +47,7 @@ export async function startServer(): Promise<void> {
   const switchStrategy = new SwitchStrategy(modelPool, config.switch)
   const adapterRegistry = new AdapterRegistry(config)
   const runtimeEvents = new RuntimeEvents()
+  const stopHealthChecks = startHealthCheckLoop(adapterRegistry, modelPool, config.switch.healthCheckInterval)
 
   const app = express()
   app.use(express.json({ limit: '5mb' }))
@@ -51,6 +55,12 @@ export async function startServer(): Promise<void> {
   app.use(requestLogger)
 
   registerRoutes(app, { configPath, config, modelPool, metrics, switchStrategy, adapterRegistry, runtimeEvents })
+
+  app.use(
+    GENERATED_IMAGES_ROUTE,
+    generatedImageAuth(() => config.server.accessApiKey),
+    express.static(resolveGeneratedImagesDir())
+  )
 
   const webRoot = resolveWebRoot()
   app.use('/', express.static(webRoot))
@@ -66,6 +76,7 @@ export async function startServer(): Promise<void> {
   })
 
   const flushAndExit = async (code: number) => {
+    stopHealthChecks()
     try {
       await runtimeStateStore.flushSave()
     } catch {
@@ -80,6 +91,51 @@ export async function startServer(): Promise<void> {
   process.on('SIGTERM', () => {
     void flushAndExit(0)
   })
+}
+
+function startHealthCheckLoop(
+  adapterRegistry: AdapterRegistry,
+  modelPool: ModelPool,
+  healthCheckIntervalMs: number
+): () => void {
+  if (!Number.isFinite(healthCheckIntervalMs) || healthCheckIntervalMs <= 0) {
+    return () => {}
+  }
+
+  let running = false
+  const timer = setInterval(() => {
+    if (running) return
+    running = true
+    void runHealthCheckTick(adapterRegistry, modelPool).finally(() => {
+      running = false
+    })
+  }, healthCheckIntervalMs)
+
+  return () => {
+    clearInterval(timer)
+  }
+}
+
+async function runHealthCheckTick(adapterRegistry: AdapterRegistry, modelPool: ModelPool): Promise<void> {
+  const states = modelPool.listStates()
+  for (const type of MODEL_TYPES) {
+    for (const state of states[type]) {
+      if (!shouldProbeState(state.status)) continue
+      try {
+        const adapter = adapterRegistry.get(state.name)
+        await adapter.healthCheck()
+        modelPool.markHealthy(type, state.name)
+      } catch (error) {
+        logger.debug(
+          `Health check failed for ${type}/${state.name}: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
+    }
+  }
+}
+
+function shouldProbeState(status: 'available' | 'cooling' | 'unavailable' | 'quota_exhausted'): boolean {
+  return status === 'cooling' || status === 'unavailable'
 }
 
 function resolveWebRoot(): string {

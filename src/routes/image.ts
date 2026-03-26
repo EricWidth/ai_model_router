@@ -3,6 +3,7 @@ import { ImageGenerationRequest } from '../types'
 import { AppContext } from './context'
 import { sendOpenAIError } from '../middlewares/error'
 import { markModelSelected } from './model-selection'
+import { normalizeImageGenerationResponse } from './image-normalizer'
 
 export function createImageRouter(ctx: AppContext): Router {
   const router = Router()
@@ -21,10 +22,14 @@ export function createImageRouter(ctx: AppContext): Router {
         return adapter.image(body)
       })
       markModelSelected(ctx, 'visual', modelName)
+      const normalized = await normalizeImageGenerationResponse(result, req, {
+        publicBaseUrl: ctx.config.server.publicBaseUrl,
+        signedUrlSecret: ctx.config.server.accessApiKey
+      })
 
       ctx.metrics.update('visual', modelName, true, Date.now() - started, 0)
       ctx.runtimeEvents.emit('request.completed', { route: 'image', modelType: 'visual', modelName, success: true })
-      res.json(result)
+      res.json(normalized)
     } catch (error) {
       ctx.metrics.update('visual', 'unknown', false, Date.now() - started, 0)
       ctx.runtimeEvents.emit('request.completed', {

@@ -154,6 +154,18 @@ export class ModelPool {
     }
   }
 
+  markHealthy(type: ModelType, modelName: string): void {
+    const state = this.pools.get(type)?.get(modelName)
+    if (!state) return
+    if (this.isQuotaExceeded(state)) {
+      state.status = 'quota_exhausted'
+      return
+    }
+    state.status = 'available'
+    state.cooldownUntil = undefined
+    this.emitChange()
+  }
+
   addTokenUsage(type: ModelType, modelName: string, tokenCount: number): void {
     const state = this.pools.get(type)?.get(modelName)
     if (!state || !Number.isFinite(tokenCount) || tokenCount <= 0) return

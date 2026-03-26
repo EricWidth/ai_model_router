@@ -4,6 +4,8 @@ export const DEFAULT_CONFIG_TEMPLATE = `server:
   cors: true
   accessApiKey: <YOUR_ACCESS_API_KEY>
   publicModelName: custom-model
+  # 可选：用于返回生成图片 URL 的公开域名（反代/CDN域名）
+  # publicBaseUrl: https://img.example.com
 models:
   llm:
     - name: gpt-4o-mini

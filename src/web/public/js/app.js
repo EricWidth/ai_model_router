@@ -10,6 +10,7 @@ let gatewayFormDraft = {
   host: '0.0.0.0',
   cors: true,
   publicModelName: 'custom-model',
+  publicBaseUrl: '',
   accessApiKey: '',
   adminApiKey: '',
   maxRetries: '3',
@@ -165,6 +166,9 @@ function renderGatewaySettings(settings) {
   if (!gatewayFormDraft.publicModelName) {
     gatewayFormDraft.publicModelName = String(settings.publicModelName || 'custom-model')
   }
+  if (gatewayFormDraft.publicBaseUrl === undefined || gatewayFormDraft.publicBaseUrl === null) {
+    gatewayFormDraft.publicBaseUrl = String(settings.publicBaseUrl || '')
+  }
   gatewayFormDraft.cors = gatewayFormDraft.cors ?? Boolean(settings.cors)
 
   root.innerHTML = `
@@ -189,6 +193,10 @@ function renderGatewaySettings(settings) {
       <label>
         <span>对外模型名（publicModelName）</span>
         <input name="publicModelName" value="${escapeHtml(gatewayFormDraft.publicModelName || settings.publicModelName || 'custom-model')}" required />
+      </label>
+      <label>
+        <span>图片公开域名（publicBaseUrl，可选）</span>
+        <input name="publicBaseUrl" value="${escapeHtml(gatewayFormDraft.publicBaseUrl || settings.publicBaseUrl || '')}" placeholder="例如 https://img.example.com" />
       </label>
       <label>
         <span>Access Key（用于 /v1/* 鉴权）</span>
@@ -496,7 +504,8 @@ function bindGatewayForm() {
       port: Number(fd.get('port')),
       host: String(fd.get('host') || '').trim(),
       cors: String(fd.get('cors') || '').trim().toLowerCase() === 'true',
-      publicModelName: String(fd.get('publicModelName') || '').trim()
+      publicModelName: String(fd.get('publicModelName') || '').trim(),
+      publicBaseUrl: String(fd.get('publicBaseUrl') || '').trim()
     }
     const accessApiKey = String(fd.get('accessApiKey') || '').trim()
     if (accessApiKey) {
@@ -525,6 +534,7 @@ function bindGatewayForm() {
         host: String(result.host || payload.host || ''),
         cors: Boolean(result.cors ?? payload.cors),
         publicModelName: String(result.publicModelName || payload.publicModelName || 'custom-model'),
+        publicBaseUrl: String(result.publicBaseUrl || payload.publicBaseUrl || ''),
         accessApiKey: '',
         adminApiKey: '',
         maxRetries: String(result.switch?.maxRetries || payload.maxRetries || 3),
@@ -697,6 +707,7 @@ function syncGatewayDraft(form) {
     host: String(fd.get('host') || gatewayFormDraft.host || '0.0.0.0'),
     cors: String(fd.get('cors') || String(gatewayFormDraft.cors)) === 'true',
     publicModelName: String(fd.get('publicModelName') || gatewayFormDraft.publicModelName || 'custom-model'),
+    publicBaseUrl: String(fd.get('publicBaseUrl') || gatewayFormDraft.publicBaseUrl || ''),
     accessApiKey: String(fd.get('accessApiKey') || ''),
     adminApiKey: String(fd.get('adminApiKey') || ''),
     maxRetries: String(fd.get('maxRetries') || gatewayFormDraft.maxRetries || '3'),

@@ -60,12 +60,30 @@ AMR_CONFIG=examples/config.yaml npm start
 - `GET /v1/models/:id`
 - `POST /v1/chat/completions`
 - `POST /v1/multimodal/completions`
+- `POST /v1/semantic` (按语义自动路由到 llm/visual/multimodal/voice/vector)
 - `POST /v1/embeddings`
 - `POST /v1/audio/speech`
 - `POST /v1/images/generations`
 - `GET /_internal/models`
 - `GET /_internal/stats`
 - `GET /_internal/health`
+
+### 生成图片文件清理
+
+- 对于上游返回 `b64_json` 的图片结果，网关会落盘并返回本地可访问 URL（`/_generated/images/*`）
+- `/_generated/images/*` 使用与 `/v1/*` 相同的 `server.accessApiKey` 鉴权规则
+  - 若配置了 `accessApiKey`，网关会返回短时效签名 URL（默认 10 分钟）
+  - 也支持携带 `Authorization: Bearer <key>` 或 `x-api-key: <key>` 访问图片
+  - 若未配置 `accessApiKey`，则不做鉴权
+- 可通过环境变量 `AMR_SIGNED_IMAGE_URL_TTL_SECONDS` 调整签名 URL 有效期（秒）
+  - 默认 `600`（10 分钟）
+- 可选配置 `server.publicBaseUrl`（如 `https://img.example.com`）
+  - 配置后，网关返回的图片 URL 会固定使用该域名（便于反向代理/CDN）
+  - 未配置时，仍按请求头自动推断 `http(s)://host`
+- 默认自动清理 `data/generated-images` 中超过 24 小时的旧文件
+- 可通过环境变量 `AMR_GENERATED_IMAGE_RETENTION_HOURS` 调整保留时长（小时）
+  - 例如：`AMR_GENERATED_IMAGE_RETENTION_HOURS=72`
+  - 设置为 `0` 或负数可关闭自动清理
 
 ## CLI
 

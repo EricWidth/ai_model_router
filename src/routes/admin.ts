@@ -30,6 +30,7 @@ export function createAdminRouter(ctx: AppContext): Router {
       host: ctx.config.server.host,
       cors: Boolean(ctx.config.server.cors),
       publicModelName: (ctx.config.server.publicModelName || 'custom-model').trim(),
+      publicBaseUrl: (ctx.config.server.publicBaseUrl || '').trim(),
       accessApiKey: maskApiKey(ctx.config.server.accessApiKey || ''),
       hasAccessApiKey: Boolean(ctx.config.server.accessApiKey),
       adminApiKey: maskApiKey(ctx.config.server.adminApiKey || ''),
@@ -130,6 +131,26 @@ export function createAdminRouter(ctx: AppContext): Router {
       updated = true
     }
 
+    if (Object.prototype.hasOwnProperty.call(req.body ?? {}, 'publicBaseUrl')) {
+      const publicBaseUrl = String(req.body?.publicBaseUrl ?? '').trim()
+      if (publicBaseUrl) {
+        if (!/^https?:\/\//i.test(publicBaseUrl)) {
+          sendOpenAIError(
+            res,
+            400,
+            'publicBaseUrl must start with http:// or https://',
+            'invalid_request_error',
+            'publicBaseUrl'
+          )
+          return
+        }
+        ctx.config.server.publicBaseUrl = publicBaseUrl.replace(/\/+$/, '')
+      } else {
+        ctx.config.server.publicBaseUrl = undefined
+      }
+      updated = true
+    }
+
     if (Object.prototype.hasOwnProperty.call(req.body ?? {}, 'adminApiKey')) {
       const adminApiKey = String(req.body?.adminApiKey ?? '').trim()
       if (!adminApiKey) {
@@ -188,6 +209,7 @@ export function createAdminRouter(ctx: AppContext): Router {
         host: ctx.config.server.host,
         cors: Boolean(ctx.config.server.cors),
         publicModelName: (ctx.config.server.publicModelName || 'custom-model').trim(),
+        publicBaseUrl: (ctx.config.server.publicBaseUrl || '').trim(),
         accessApiKey: maskApiKey(ctx.config.server.accessApiKey || ''),
         hasAccessApiKey: Boolean(ctx.config.server.accessApiKey),
         adminApiKey: maskApiKey(ctx.config.server.adminApiKey || ''),

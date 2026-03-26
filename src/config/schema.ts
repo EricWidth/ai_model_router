@@ -11,7 +11,8 @@ export const configSchema = {
         cors: { type: 'boolean' },
         adminApiKey: { type: 'string' },
         accessApiKey: { type: 'string' },
-        publicModelName: { type: 'string' }
+        publicModelName: { type: 'string' },
+        publicBaseUrl: { type: 'string' }
       },
       additionalProperties: true
     },
