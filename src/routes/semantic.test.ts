@@ -27,3 +27,28 @@ test('detectCategory routes to vector when embedding fields are provided', () =>
 
   assert.equal(decision.category, 'vector')
 })
+
+test('detectCategory routes image-understanding payloads to multimodal by default', () => {
+  const decision = detectCategory({
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: '请描述图片内容' },
+          { type: 'image_url', image_url: { url: 'https://example.com/a.png' } }
+        ]
+      }
+    ]
+  })
+
+  assert.equal(decision.category, 'multimodal')
+})
+
+test('detectCategory keeps image generation requests on visual category', () => {
+  const decision = detectCategory({
+    prompt: 'draw a cat',
+    size: '1024x1024'
+  })
+
+  assert.equal(decision.category, 'visual')
+})

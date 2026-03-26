@@ -348,10 +348,10 @@ export function detectCategory(body: Record<string, unknown>): SemanticDecision 
   const hasImage = hasImagePayload(body)
   const text = collectText(body).toLowerCase()
   if (hasImage) {
-    if (matchesAny(text, ['对比', '比较', '多模态', '跨模态', 'multi-modal', 'multimodal', '结合图文'])) {
-      return { category: 'multimodal', confidence: 0.82, reason: 'image payload with cross-modal reasoning intent' }
+    if (matchesAny(text, ['绘图', '生成图片', 'image generation', 'generate image'])) {
+      return { category: 'visual', confidence: 0.8, reason: 'image generation semantics detected' }
     }
-    return { category: 'visual', confidence: 0.85, reason: 'image payload detected' }
+    return { category: 'multimodal', confidence: 0.88, reason: 'image payload detected for multimodal reasoning' }
   }
 
   if (matchesAny(text, ['向量', 'embedding', 'embeddings', '向量化', '检索向量'])) {

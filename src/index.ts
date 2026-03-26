@@ -120,7 +120,7 @@ async function runHealthCheckTick(adapterRegistry: AdapterRegistry, modelPool: M
   const states = modelPool.listStates()
   for (const type of MODEL_TYPES) {
     for (const state of states[type]) {
-      if (!shouldProbeState(state.status)) continue
+      if (!shouldProbeState(type, state.status)) continue
       try {
         const adapter = adapterRegistry.get(state.name)
         await adapter.healthCheck()
@@ -134,8 +134,12 @@ async function runHealthCheckTick(adapterRegistry: AdapterRegistry, modelPool: M
   }
 }
 
-function shouldProbeState(status: 'available' | 'cooling' | 'unavailable' | 'quota_exhausted'): boolean {
-  return status === 'cooling' || status === 'unavailable'
+export function shouldProbeState(
+  type: (typeof MODEL_TYPES)[number],
+  status: 'available' | 'cooling' | 'unavailable' | 'quota_exhausted'
+): boolean {
+  if (status !== 'cooling' && status !== 'unavailable') return false
+  return type === 'llm' || type === 'multimodal'
 }
 
 function resolveWebRoot(): string {
