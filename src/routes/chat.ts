@@ -10,6 +10,7 @@ import { isQuotaExhausted, demoteModelToLowestPriority } from '../core/quota-pol
 import { saveConfigToFile } from '../config/storage'
 import { logger } from '../utils/logger'
 import { markModelSelected } from './model-selection'
+import { detectCategory, SemanticDecision, setSemanticHeaders } from './semantic'
 
 export function createChatRouter(ctx: AppContext): Router {
   return createTypedChatRouter(ctx, 'llm', 'chat')
@@ -31,14 +32,25 @@ function createTypedChatRouter(ctx: AppContext, modelType: 'llm' | 'multimodal',
         return
       }
 
+      const routing = resolveChatRouteDecision(modelType, body)
+      const effectiveModelType = routing.modelType
+      if (routing.error) {
+        sendOpenAIError(res, 400, routing.error, 'invalid_request_error')
+        return
+      }
+      if (modelType === 'llm') {
+        setSemanticHeaders(res, routing.semanticDecision)
+      }
+
       const wantsStream = body.stream !== false
+
       if (wantsStream) {
-        const { modelName, result: upstream } = await ctx.switchStrategy.execute(modelType, async (modelName) => {
+        const { modelName, result: upstream } = await ctx.switchStrategy.execute(effectiveModelType, async (modelName) => {
           const adapter = ctx.adapterRegistry.get(modelName)
           return adapter.chatStream(body)
         })
-        persistLearnedMaxTokensIfNeeded(ctx, modelType, modelName)
-        markModelSelected(ctx, modelType, modelName)
+        persistLearnedMaxTokensIfNeeded(ctx, effectiveModelType, modelName)
+        markModelSelected(ctx, effectiveModelType, modelName)
         let streamTotalTokens = 0
         let streamedText = ''
         let completedEventSent = false
@@ -50,13 +62,13 @@ function createTypedChatRouter(ctx: AppContext, modelType: 'llm' | 'multimodal',
             streamTotalTokens = estimated.total_tokens
           }
           if (success && streamTotalTokens > 0) {
-            ctx.modelPool.addTokenUsage(modelType, modelName, streamTotalTokens)
-            persistQuotaDemotionIfNeeded(ctx, modelType, modelName)
+            ctx.modelPool.addTokenUsage(effectiveModelType, modelName, streamTotalTokens)
+            persistQuotaDemotionIfNeeded(ctx, effectiveModelType, modelName)
           }
-          ctx.metrics.update(modelType, modelName, success, Date.now() - started, streamTotalTokens)
+          ctx.metrics.update(effectiveModelType, modelName, success, Date.now() - started, streamTotalTokens)
           ctx.runtimeEvents.emit('request.completed', {
             route,
-            modelType,
+            modelType: effectiveModelType,
             modelName,
             success,
             stream: true,
@@ -90,12 +102,12 @@ function createTypedChatRouter(ctx: AppContext, modelType: 'llm' | 'multimodal',
         return
       }
 
-      const { modelName, result } = await ctx.switchStrategy.execute(modelType, async (modelName) => {
+      const { modelName, result } = await ctx.switchStrategy.execute(effectiveModelType, async (modelName) => {
         const adapter = ctx.adapterRegistry.get(modelName)
         return adapter.chat(body)
       })
-      persistLearnedMaxTokensIfNeeded(ctx, modelType, modelName)
-      markModelSelected(ctx, modelType, modelName)
+      persistLearnedMaxTokensIfNeeded(ctx, effectiveModelType, modelName)
+      markModelSelected(ctx, effectiveModelType, modelName)
 
       const sanitized = normalizeChatResponse(result, ctx.config.server.publicModelName || 'custom-model')
       let tokens = sanitized.usage?.total_tokens ?? 0
@@ -105,17 +117,25 @@ function createTypedChatRouter(ctx: AppContext, modelType: 'llm' | 'multimodal',
         tokens = estimated.total_tokens
         sanitized.usage = estimated
       }
-      ctx.modelPool.addTokenUsage(modelType, modelName, tokens)
-      persistQuotaDemotionIfNeeded(ctx, modelType, modelName)
-      ctx.metrics.update(modelType, modelName, true, Date.now() - started, tokens)
-      ctx.runtimeEvents.emit('request.completed', { route, modelType, modelName, success: true, stream: false })
+      ctx.modelPool.addTokenUsage(effectiveModelType, modelName, tokens)
+      persistQuotaDemotionIfNeeded(ctx, effectiveModelType, modelName)
+      ctx.metrics.update(effectiveModelType, modelName, true, Date.now() - started, tokens)
+      ctx.runtimeEvents.emit('request.completed', {
+        route,
+        modelType: effectiveModelType,
+        modelName,
+        success: true,
+        stream: false
+      })
       res.json(sanitized)
     } catch (error) {
       if (body.stream !== true) {
-        ctx.metrics.update(modelType, 'unknown', false, Date.now() - started, 0)
+        const routing = resolveChatRouteDecision(modelType, body)
+        const effectiveModelType = routing.modelType
+        ctx.metrics.update(effectiveModelType, 'unknown', false, Date.now() - started, 0)
         ctx.runtimeEvents.emit('request.completed', {
           route,
-          modelType,
+          modelType: effectiveModelType,
           modelName: 'unknown',
           success: false,
           stream: false,
@@ -127,6 +147,40 @@ function createTypedChatRouter(ctx: AppContext, modelType: 'llm' | 'multimodal',
   })
 
   return router
+}
+
+export function resolveChatRouteDecision(
+  baseType: 'llm' | 'multimodal',
+  request: ChatCompletionRequest
+): { modelType: 'llm' | 'multimodal'; error?: string; semanticDecision: SemanticDecision } {
+  if (baseType !== 'llm') {
+    return {
+      modelType: baseType,
+      semanticDecision: {
+        category: baseType,
+        confidence: 1,
+        reason: 'explicit multimodal chat route selected'
+      }
+    }
+  }
+  const decision = detectCategory(request as unknown as Record<string, unknown>)
+  if (decision.category === 'multimodal') return { modelType: 'multimodal', semanticDecision: decision }
+  if (decision.category === 'llm' || decision.category === 'visual') return { modelType: 'llm', semanticDecision: decision }
+  if (decision.category === 'voice') {
+    return {
+      modelType: 'llm',
+      semanticDecision: decision,
+      error: 'This request is voice-oriented. Please use /v1/audio/speech for voice generation.'
+    }
+  }
+  if (decision.category === 'vector') {
+    return {
+      modelType: 'llm',
+      semanticDecision: decision,
+      error: 'This request is embedding-oriented. Please use /v1/embeddings for vector generation.'
+    }
+  }
+  return { modelType: 'llm', semanticDecision: decision }
 }
 
 function persistQuotaDemotionIfNeeded(ctx: AppContext, type: ModelType, modelName: string): void {

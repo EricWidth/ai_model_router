@@ -12,7 +12,8 @@
     "dev": "tsx src/index.ts",
     "start": "node dist/src/index.js",
     "cli": "tsx cli/index.ts",
-    "pkg": "npm run build && pkg ."
+    "pkg": "npm run build && pkg .",
+    "smoke:openclaw-ws": "npm run build && node --test dist/src/openclaw-ws-smoke.test.js"
   },
   "pkg": {
     "scripts": [

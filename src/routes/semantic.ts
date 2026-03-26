@@ -18,10 +18,11 @@ import { isQuotaExhausted, demoteModelToLowestPriority } from '../core/quota-pol
 import { saveConfigToFile } from '../config/storage'
 import { logger } from '../utils/logger'
 import { normalizeImageGenerationResponse } from './image-normalizer'
+import { createUnifiedTask } from '../core/unified-task'
 
 type SemanticCategory = ModelType
 
-interface SemanticDecision {
+export interface SemanticDecision {
   category: SemanticCategory
   confidence: number
   reason: string
@@ -34,19 +35,20 @@ export function createSemanticRouter(ctx: AppContext): Router {
     const started = Date.now()
     const body = (req.body ?? {}) as Record<string, unknown>
     const decision = detectCategory(body)
+    const task = createUnifiedTask(decision.category, body)
 
     try {
-      if (decision.category === 'vector') {
+      if (task.taskType === 'embeddings') {
         await handleVector(ctx, body, decision, started, res)
         return
       }
 
-      if (decision.category === 'voice') {
+      if (task.taskType === 'speech') {
         await handleVoice(ctx, body, decision, started, res)
         return
       }
 
-      if (decision.category === 'visual' && shouldRouteToImageGeneration(body)) {
+      if (task.taskType === 'image_generation') {
         await handleImageGeneration(ctx, body, decision, started, req, res)
         return
       }
@@ -659,7 +661,7 @@ function normalizeEmbeddingsResponse(result: EmbeddingsResponse, publicModelName
   }
 }
 
-function setSemanticHeaders(res: Response, decision: SemanticDecision): void {
+export function setSemanticHeaders(res: Response, decision: SemanticDecision): void {
   res.set('x-semantic-category', decision.category)
   res.set('x-semantic-confidence', String(decision.confidence))
 }

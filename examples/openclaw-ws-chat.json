@@ -1,0 +1,10 @@
+{
+  "session": {
+    "key": "agent:main:main"
+  },
+  "action": "chat",
+  "input": {
+    "text": "给我一句很短的自我介绍",
+    "stream": true
+  }
+}

@@ -54,6 +54,280 @@ AMR_CONFIG=examples/config.yaml npm start
 - API Key: `server.accessApiKey` 的值（在 `config.yaml` 中配置）
 - Model: `custom-model`
 
+### OpenClaw Task API
+
+OpenClaw 风格请求可以直接发送到以下入口：
+
+- `POST /v1/tasks/openclaw/resolve`
+- `POST /v1/tasks/openclaw/execute`
+- `GET /v1/tasks/openclaw/ws`（WebSocket upgrade）
+
+鉴权方式与其他 `/v1/*` 接口一致：
+
+- `Authorization: Bearer <server.accessApiKey>`
+- 或 `x-api-key: <server.accessApiKey>`
+
+`openclaw-adapter` 会自动做这些归一化：
+
+- `session.key` / `sessionKey` 映射为内部 `sessionKey`
+- `action` 映射为 `chat` / `embed` / `speech` / `generate`
+- `input.text` 自动折算为内部 `input`
+- `input.attachments` 中的图片会自动折算为 multimodal chat messages
+- `hints.operation` / `hints.modality` 会参与任务类型推断
+
+#### 文本 Chat（SSE 流式）
+
+`chat` 在未显式设置 `stream: false` 时默认走流式返回：
+
+```bash
+curl -N http://127.0.0.1:8080/v1/tasks/openclaw/execute \
+  -H "Authorization: Bearer <ACCESS_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session": { "key": "agent:main:main" },
+    "action": "chat",
+    "input": {
+      "text": "给我一句很短的自我介绍",
+      "stream": true
+    }
+  }'
+```
+
+#### 多模态 Chat（文本 + 图片）
+
+图片附件会被自动折算成内部 multimodal message：
+
+```bash
+curl http://127.0.0.1:8080/v1/tasks/openclaw/execute \
+  -H "Authorization: Bearer <ACCESS_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionKey": "agent:vision:demo",
+    "action": "chat",
+    "input": {
+      "text": "描述这张图片里有什么",
+      "attachments": [
+        {
+          "type": "image_url",
+          "url": "https://example.com/cat.png"
+        }
+      ],
+      "stream": false
+    }
+  }'
+```
+
+#### Embeddings
+
+```bash
+curl http://127.0.0.1:8080/v1/tasks/openclaw/execute \
+  -H "Authorization: Bearer <ACCESS_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionKey": "agent:embed:demo",
+    "action": "embed",
+    "input": {
+      "text": "AI Model Router"
+    }
+  }'
+```
+
+也可以通过 hints 显式指定向量任务：
+
+```bash
+curl http://127.0.0.1:8080/v1/tasks/openclaw/execute \
+  -H "Authorization: Bearer <ACCESS_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "generate",
+    "input": {
+      "text": "embed this text"
+    },
+    "hints": {
+      "modality": "vector",
+      "operation": "embeddings"
+    }
+  }'
+```
+
+#### Speech
+
+```bash
+curl http://127.0.0.1:8080/v1/tasks/openclaw/execute \
+  -H "Authorization: Bearer <ACCESS_API_KEY>" \
+  -H "Content-Type: application/json" \
+  --output speech.mp3 \
+  -d '{
+    "sessionKey": "agent:tts:demo",
+    "action": "generate",
+    "input": {
+      "text": "你好，这是网关语音测试",
+      "voice": "alloy",
+      "response_format": "mp3"
+    },
+    "hints": {
+      "modality": "audio",
+      "operation": "speech"
+    }
+  }'
+```
+
+#### Image Generation
+
+```bash
+curl http://127.0.0.1:8080/v1/tasks/openclaw/execute \
+  -H "Authorization: Bearer <ACCESS_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionKey": "agent:image:demo",
+    "action": "generate",
+    "input": {
+      "prompt": "A clean product illustration of a robot gateway",
+      "size": "1024x1024",
+      "n": 1
+    },
+    "hints": {
+      "modality": "image",
+      "operation": "image_generation"
+    }
+  }'
+```
+
+如果上游返回 `b64_json`，网关会自动标准化为可访问图片 URL。
+
+#### Resolve 调试
+
+联调时如果想先看 OpenClaw payload 被映射成什么内部任务，可以先调用：
+
+```bash
+curl http://127.0.0.1:8080/v1/tasks/openclaw/resolve \
+  -H "Authorization: Bearer <ACCESS_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionKey": "agent:debug:demo",
+    "action": "chat",
+    "input": {
+      "text": "hello",
+      "attachments": [
+        {
+          "type": "image_url",
+          "url": "https://example.com/cat.png"
+        }
+      ]
+    }
+  }'
+```
+
+返回中会包含：
+
+- `sessionKey`
+- `gatewayTask`
+- `task`
+
+#### WebSocket
+
+如果你希望用单条长连接发送 OpenClaw 任务，可以连接：
+
+```text
+ws://127.0.0.1:8080/v1/tasks/openclaw/ws
+```
+
+鉴权支持：
+
+- 请求头 `Authorization: Bearer <ACCESS_API_KEY>`
+- 请求头 `x-api-key: <ACCESS_API_KEY>`
+- 或 query string `?api_key=<ACCESS_API_KEY>`
+
+客户端发送消息时，`data` 直接复用 `openclaw/execute` 的请求体：
+
+```json
+{
+  "id": "req_001",
+  "type": "task.execute",
+  "data": {
+    "session": { "key": "agent:main:main" },
+    "action": "chat",
+    "input": {
+      "text": "hello",
+      "stream": true
+    }
+  }
+}
+```
+
+也支持：
+
+- `type: "task.resolve"`
+- `type: "task.cancel"`
+- `type: "ping"`
+
+服务端返回消息类型：
+
+- `task.resolved`
+- `task.result`
+- `task.chunk`
+- `task.cancelled`
+- `task.completed`
+- `task.error`
+- `pong`
+
+其中：
+
+- 非流式结果通过 `task.result` 返回
+- 流式 chat 会把 SSE 事件拆成多条 `task.chunk`，结束时发送 `task.completed`
+- 二进制语音结果会通过 `task.result.data.base64` 返回
+- 第一版 `task.cancel` 只支持取消正在进行中的流式 chat，请求格式如下：
+
+```json
+{
+  "id": "req_cancel",
+  "type": "task.cancel",
+  "data": {
+    "requestId": "req_stream"
+  }
+}
+```
+
+- 取消成功后会返回 `task.cancelled`
+- 如果 WebSocket 连接关闭，正在进行中的流式 chat 也会被自动清理
+
+项目里也提供了一个最小联调脚本：
+
+```bash
+npm run build
+node scripts/openclaw_ws_client.js \
+  --url ws://127.0.0.1:8080/v1/tasks/openclaw/ws \
+  --api-key <ACCESS_API_KEY> \
+  --payload examples/openclaw-ws-chat.json
+```
+
+也可以直接传内联 JSON：
+
+```bash
+node scripts/openclaw_ws_client.js \
+  --url ws://127.0.0.1:8080/v1/tasks/openclaw/ws \
+  --api-key <ACCESS_API_KEY> \
+  --payload '{"action":"chat","input":{"text":"hello","stream":true}}'
+```
+
+如果你想验证整条链路是否可用，也可以直接跑端到端 smoke test：
+
+```bash
+npm run smoke:openclaw-ws
+```
+
+这条测试会：
+
+- 启动一个本地 mock OpenAI 兼容服务
+- 启动 AMR
+- 通过 `/v1/tasks/openclaw/ws` 发送真实 WebSocket 请求
+- 校验流式 chat 的 `task.chunk` / `task.completed`
+- 校验 embeddings 的非流式 `task.result`
+- 校验 speech 的 base64 二进制返回
+- 校验 image generation 的 `b64_json -> hosted URL` 标准化
+- 校验 `task.resolve` 的任务映射结果
+- 校验 `ping -> pong` 的协议保活行为
+
 ## API
 
 - `GET /v1/models`

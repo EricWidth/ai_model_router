@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import fs from 'node:fs'
+import http from 'node:http'
 import path from 'node:path'
 import express from 'express'
 import cors from 'cors'
@@ -20,6 +21,7 @@ import { saveConfigToFile } from './config/storage'
 import { MODEL_TYPES } from './types'
 import { GENERATED_IMAGES_ROUTE, resolveGeneratedImagesDir } from './routes/image-normalizer'
 import { ModelAdapter } from './adapters/base'
+import { handleOpenClawWebSocketUpgrade } from './core/openclaw-ws'
 
 export async function startServer(): Promise<void> {
   const configPath = process.env.AMR_CONFIG ?? path.resolve(process.cwd(), 'examples/config.yaml')
@@ -71,7 +73,23 @@ export async function startServer(): Promise<void> {
   const port = Number.isFinite(portOverride) ? portOverride! : config.server.port
   const host = hostOverride || config.server.host
 
-  app.listen(port, host, () => {
+  const server = http.createServer(app)
+  server.on('upgrade', (req, socket, head) => {
+    const handled = handleOpenClawWebSocketUpgrade(req, socket, head, {
+      configPath,
+      config,
+      modelPool,
+      metrics,
+      switchStrategy,
+      adapterRegistry,
+      runtimeEvents
+    }, config.server.accessApiKey)
+    if (!handled) {
+      socket.destroy()
+    }
+  })
+
+  server.listen(port, host, () => {
     logger.info(`AI Model Router listening at http://${host}:${port}`)
     logger.info(`Web UI: http://localhost:${port}`)
   })
